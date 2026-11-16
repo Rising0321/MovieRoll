@@ -1,0 +1,97 @@
+# MovieRoll SFT stage 1 -- single-event (structure caption) training.
+# Produces the released MovieRoll base checkpoint, starting from the public bidirectional 480p model.
+#
+# Paths are placeholders: point `dit_weight` at the public transformer, `data_root` at a manifest.jsonl
+# directory built the way movieroll/train.py's module docstring describes, and `sample_prompt_csv` at a
+# prompt CSV. Every path is checked before any weight is loaded.
+model_type: MovieRoll-16164-MMDiT
+
+dit_weight: ckpts/transformer/480p_t2v/diffusion_pytorch_model.safetensors
+vae_path: ckpts/vae
+text_encoder_path: ckpts/text_encoder/llm
+byt5_google_path: ckpts/text_encoder/byt5-small
+byt5_ckpt_path: ckpts/text_encoder/Glyph-SDXL-v2/checkpoints/byt5_model.pt
+multilingual_prompt_format_font_path: ckpts/text_encoder/Glyph-SDXL-v2/assets/multilingual_10-lang_idx.json
+multilingual_prompt_format_color_path: ckpts/text_encoder/Glyph-SDXL-v2/assets/color_idx.json
+output_dir: ./outputs/movieroll_sft_stage1
+resume_checkpoint: null
+data_root: ./data/movieroll_sft_stage1
+
+# 241 frames -> 61 latent frames, and 61 % 4 == 1, so the clip is a whole number of chunks.
+height: 480
+width: 640
+sample_n_frames: 241
+batch_size: 1
+num_workers: 8
+prefetch_factor: 2
+
+sp_size: 2
+# `fsdp_sub_world_size` is the size of ONE FSDP shard group and must divide WORLD_SIZE: hybrid sharding
+# replicates whole groups, so WORLD_SIZE // fsdp_sub_world_size is the replica count and must be >= 1. It is
+# set to 8 here, i.e. one 8-GPU node, where it equals WORLD_SIZE and the strategy falls back to full
+# sharding. Raise it to your own shard-group size if you have more; the released runs used 16.
+fsdp_sharding_strategy: hybrid
+fsdp_sub_world_size: 8
+use_cpu_offload: false
+gradient_checkpointing: true
+selective_checkpointing: 1.0
+
+master_weight_type: fp32
+precision: bf16
+vae_precision: fp16
+text_encoder_precision: fp16
+
+learning_rate: 2.0e-5
+weight_decay: 0.01
+max_grad_norm: 1.0
+lr_scheduler: constant_with_warmup
+lr_warmup_steps: 0
+lr_num_cycles: 1
+lr_power: 1.0
+gradient_accumulation_steps: 1
+max_train_steps: 1000000
+num_train_epochs: 100      # not a stop condition: the data reshuffles every epoch until max_train_steps
+global_seed: 930
+
+ema_decay: 0.9993
+flow_shift_video: 3.0
+
+streaming_chunk_size: 4
+streaming_window_size: 5
+streaming_max_num_latent_frames: 120
+streaming_full_history_block_num: 6
+streaming_t2v_prob: 0.8
+# Stage 1 trains on whole-clip structure captions only; stage 2 switches this to events.
+streaming_caption_type_probs: {event: 0.0, structure: 1.0}
+streaming_context_noise_enabled: true
+streaming_context_noise_prob: 0.9
+streaming_context_noise_sigma_max: 0.15
+streaming_context_noise_sigma_min: 0.0
+streaming_inference_context_noise: 0.05
+streaming_per_sample_null_prob: 0.05
+streaming_per_window_null_prob: 0.05
+streaming_interactive_mode: false
+
+text_len: 1000
+byt5_max_length: 256
+byt5_uncond_p: 0.1
+
+sample_interval: 2000
+fixed_prompt_validation_every: 2000
+sample_prompt_csv:
+  - ./data/prompts/movieroll_bench_streaming.csv
+infer_steps_video: 50
+infer_flow_shift_video: 5.0
+use_cfg: true                # classifier-free guidance on; its scale is AnnealCFG's
+neg_prompt: null
+video_fps: 24
+try_first_iter: false
+
+checkpointing_steps: 2000
+log_interval: 1
+gc_interval: 200
+loss_spike_threshold: 2.0
+dry_run: false
+wandb_project: null
+wandb_exp_name: null
+disable_tensorboard: true

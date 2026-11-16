@@ -1,0 +1,4 @@
+# Dependencies of movieroll on top of the repository-level requirements.txt.
+# FlashAttention-3 (`flash_attn_interface`, Hopper GPUs) has to be built from source, see the Environment
+# section of the root README.md.
+flash-attn

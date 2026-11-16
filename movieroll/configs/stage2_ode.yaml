@@ -1,0 +1,157 @@
+# ============================================================
+# MovieRoll Stage 2 -- ODE regression (the student's few-step initialisation)
+# ============================================================
+# Reference: CausVid (https://arxiv.org/abs/2412.07772) section 4.3.
+#
+# The frozen teacher produces 50-step rolling ODE trajectories offline
+# (movieroll/scripts/precompute_ode.py); the trainable student learns to predict the next step of
+# that trajectory with its own 5-step schedule. Both are the same autoregressive streaming
+# architecture, which is what makes the trajectories transferable -- and what lets the resulting
+# student.safetensors feed Stage 3 directly as the DMD generator.
+#
+# Paths are placeholders. Every one of them is checked before any weight is loaded.
+
+exp_name: "stage2_ode_1000steps"
+
+seed: 42
+logdir: "./outputs/movieroll_stage2_ode"
+resume_checkpoint: null
+
+# Training settings
+max_steps: 1000
+save_interval: 100          # each save is followed by one validation (see validate_on_save)
+
+# Optimizer. Aligned with the SFT base run: lr 1e-5, weight_decay 0.01, and AdamW's own betas for the
+# ndim < 2 parameters -- Muon defaults those to (0.95, 0.95), so they are written out here.
+optimizer:
+  lr: 1.0e-5
+  weight_decay: 0.01
+  adamw_betas: [0.9, 0.999]
+  adamw_eps: 1.0e-8
+
+# Gradient clipping, same value as the SFT base run.
+max_grad_norm_student: 1.0
+
+# Parallelism
+sp_size: 1
+
+# FSDP
+fsdp:
+  sharding_strategy: "hybrid"
+  shard_world_size: 8
+  student_checkpointing: true
+  teacher_checkpointing: false
+
+  student_cpu_offload: false
+  teacher_cpu_offload: false
+  text_encoder_cpu_offload: false
+
+# ODE regression
+ode:
+  # SD3 shift; set_custom_timesteps warps the raw ladder with it:
+  # [1000, 800, 600, 400, 200] -> [1000, 952, 882, 769, 556]
+  timestep_shift: 5.0
+
+  # Teacher: a 50-step high-precision rolling ODE trajectory (window 5, 10 steps per window)
+  teacher_num_inference_steps: 50
+
+  # Student: the 5-step rolling schedule. window_size == len(denoising_step_list) == 5.
+  denoising_step_list: [1000, 800, 600, 400, 200]
+
+  # Noise is injected into the conditioning history only -- the trajectory input and the target are
+  # never noised. The formula is (1-s)*clean + s*eps with s ~ U(0, context_noise_sigma_max), ONE s for
+  # the whole prefix. This is deliberately unlike SFT's per-chunk sigma: ODE-init and the DMD
+  # distillation that follows both use a single context noise level, and the conditioning frames always
+  # declare timestep 0.
+  context_noise_sigma_max: 0.15        # 0 disables it
+
+  # How many non-overlapping noisy windows one parallel forward may carry.
+  max_num_noisy_windows: 3
+
+  # The teacher's per-round rolling snapshots: {idx:06d}.pt, see the format in
+  # movieroll/trainer/ode/trainer.py::TrajectoryDataset.
+  trajectory_cache_dir: "./data/ode_init/rolling_ode_traj_cache"
+
+  # true trains the student from the cache; the precompute entry sets it false to build the cache.
+  cache_only: true
+
+# Video geometry.
+video:
+  # 241 raw frames -> 61 latent frames ((241-1)/4+1). 61 % 4 == 1, so the first chunk is 1+4 = 5 latent
+  # frames and the rest are 4 -> 15 chunks. The cache never reaches the kv_recompute threshold below: it is
+  # checked with at most 13 chunks in it, because the globally last chunk is never encoded.
+  num_frames: 241
+  # One resolution (H, W); the precompute script uses it for every prompt. The same as Stage 3 and inference.
+  resolution: [480, 864]
+
+# Distributed training
+mixed_precision: true
+progress_report_interval: 1
+
+# Model checkpoints. Student and teacher are both the same autoregressive checkpoint -- the EMA of the
+# multi-event SFT stage (sft/stage2_multi_event.yaml, initialised from the MovieRoll base) at step 6000 --
+# which is what keeps the trajectories aligned. The resulting student.safetensors is fed straight to
+# Stage 3 as its generator_ckpt.
+teacher_ckpt: "./outputs/movieroll_sft_stage2/checkpoints/step-6000/ema_diffusion_pytorch_model.safetensors"
+student_ckpt: "./outputs/movieroll_sft_stage2/checkpoints/step-6000/ema_diffusion_pytorch_model.safetensors"
+
+model_type: "MovieRoll-16164-MMDiT"
+byt5_max_length: 256
+
+# VAE / text encoder
+vae_path: "ckpts/vae"
+vae_precision: "fp16"
+text_encoder_path: "ckpts/text_encoder/llm"
+text_len: 1000
+text_encoder_precision: "fp16"
+byt5_google_path: "ckpts/text_encoder/byt5-small"
+byt5_ckpt_path: "ckpts/text_encoder/Glyph-SDXL-v2/checkpoints/byt5_model.pt"
+multilingual_prompt_format_font_path: "ckpts/text_encoder/Glyph-SDXL-v2/assets/multilingual_10-lang_idx.json"
+multilingual_prompt_format_color_path: "ckpts/text_encoder/Glyph-SDXL-v2/assets/color_idx.json"
+
+# Data
+data:
+  # The ODE-init prompt set, read by the precompute entry; cache-only training reads only
+  # trajectory_cache_dir.
+  prompt_path: "./data/ode_init/prompts.csv"
+
+  batch_size: 1
+  num_workers: 2
+
+# Memory management
+gc_interval: 2
+
+# The streaming base, kept identical to stage3_dmd_rolling.yaml so the ODE-init student and the DMD
+# generator share one architecture and their weights stay interchangeable.
+streaming_config:
+  streaming_chunk_size: 4
+  streaming_window_size: 5
+  streaming_max_num_latent_frames: 120
+  streaming_full_history_block_num: 6         # HieraKV: full-history blocks [0,6), sink-recent blocks [6,54)
+  streaming_kv_recompute_enabled: true
+  streaming_kv_recompute_threshold: 18
+  streaming_kv_recompute_recent_k: 3
+
+# Validation runs on every checkpoint save. Each DP replica takes a different prompt; the ranks of one
+# SP group share a prompt and run the forward together, and only rank_within_spgroup == 0 decodes and
+# writes.
+validate_on_save: true
+validation:
+  n_sample_each_rank: 1
+  # Cache entries to validate on (each carries its own prompt and resolution), so the output can be
+  # compared frame by frame against the teacher's videos/{idx}.mp4. 32 entries = the production world
+  # size, one per rank. A run with D data-parallel ranks (world_size / sp_size) reads the first
+  # min(D * n_sample_each_rank, 32) of them, so the highest entry it needs is 7 up to 8 ranks, 107 up to
+  # 16, 507 up to 24 and 907 beyond.
+  # The trainer checks those entries exist before the first step.
+  prompt_indices: [0, 1, 2, 3, 4, 5, 6, 7,
+                   100, 101, 102, 103, 104, 105, 106, 107,
+                   500, 501, 502, 503, 504, 505, 506, 507,
+                   900, 901, 902, 903, 904, 905, 906, 907]
+
+# Sampling settings for training monitoring
+sampling:
+  use_cfg: false              # the student has CFG distilled into its weights
+  # 241 frames, the same length as the training data: 61 latents, 15 chunks, chunk_sizes [5, 4x14] --
+  # structurally identical to the cached trajectory, which is what makes the comparison meaningful.
+  video_length: 241

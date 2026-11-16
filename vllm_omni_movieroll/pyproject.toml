@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vllm-omni-movieroll"
+version = "0.2.0"
+description = "MovieRoll long-video generation as a native vLLM-Omni diffusion pipeline (out-of-tree plugin)"
+requires-python = ">=3.11"
+license = {text = "Tencent Hunyuan Community License; see NOTICE for the Apache-2.0 portions"}
+# vllm-omni 0.32.0 and the vLLM it is aligned with (0.32.0) are the user's to install: see README.md
+dependencies = []
+
+[project.entry-points."vllm_omni.general_plugins"]
+movieroll = "vllm_omni_movieroll:register"
+
+# vLLM loads its general plugins when it builds the CLI parser, before `vllm serve --omni` resolves the stage topology; the
+# Omni group above is loaded only later, so the topology must also be registered from here (`register` is idempotent)
+[project.entry-points."vllm.general_plugins"]
+movieroll = "vllm_omni_movieroll:register"
+
+[tool.setuptools]
+packages = [
+    "vllm_omni_movieroll",
+    "vllm_omni_movieroll.examples",
+    "vllm_omni_movieroll.examples.offline_inference",
+    "vllm_omni_movieroll.examples.offline_inference.movieroll",
+]
+
+[tool.setuptools.package-dir]
+vllm_omni_movieroll = "."
+
+[tool.setuptools.package-data]
+vllm_omni_movieroll = ["deploy/*.yaml", "NOTICE", "README.md", "README_CN.md", "examples/*.sh", "examples/*/movieroll/*.md",
+                       "examples/*/movieroll/*.sh", "tools/*.py", "tools/*.sh"]

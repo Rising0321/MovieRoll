@@ -1,0 +1,169 @@
+# ============================================================
+# MovieRoll Stage 3 -- rolling DMD distillation
+# ============================================================
+# The configuration the released distilled checkpoint was trained with: phase 1 for 600 steps, then
+# phase 2 for 600 steps, on 128 GPUs. One difference is deliberate: that run drew the orientation of
+# every batch (landscape 480x864 or portrait 864x480, each with probability 0.5); this release trains one
+# resolution, `video.resolution: [480, 864]` (the draw's slot in the decision stream is kept, so the
+# task and switch-frame draws are unchanged).
+#
+# The two phases run consecutively in this order. Phase 1 trains 241-frame clips (61 latent frames =
+# 15 chunks = 3 rolling windows); phase 2 trains 721-frame clips (181 latent frames = 45 chunks = 9
+# windows). Both use chunk size 4 and rolling window size 5. `max_steps` is phase-local, while the
+# checkpoint metadata also carries the cross-phase global_step.
+#
+# Paths are placeholders. Point `generator_ckpt` at the Stage 2 ODE student (Stage 2 writes it under a
+# timestamped <logdir>/<exp_name>_<YYYYmmdd_HHMMSS>/ directory), the two score
+# checkpoints at the public bidirectional 480p transformer, and the three CSVs at your own prompt
+# data (the schema is documented next to each key). Every checkpoint, directory and CSV is checked
+# before any weight is loaded.
+
+exp_name: "movieroll_stage3_dmd_rolling"
+logdir: "./outputs/movieroll_stage3_dmd"
+resume_checkpoint: null
+
+dfake_gen_update_ratio: 3
+gradient_accumulation_steps: 1
+save_interval: 100
+sample_interval: 100
+val_interval: 300
+gc_interval: 3000
+
+optimizer:
+  lr: 1.0e-5
+  lr_critic: 1.0e-5
+  # Default aligned with Stage 2 / SFT; tunable as any finite non-negative value.
+  weight_decay: 0.01
+  adamw_betas: [0.9, 0.999]
+  adamw_betas_critic: [0.9, 0.999]
+  adamw_eps: 1.0e-8
+
+max_grad_norm_generator: 10.0
+max_grad_norm_critic: 10.0
+
+# Sequence parallelism is four-way. `shard_world_size` is the size of ONE FSDP shard group; WORLD_SIZE // shard_world_size
+# is the replica count, which must be exactly 1 (shard_world_size == WORLD_SIZE) or at least 2 (trainer/dmd/setup.py
+# refuses anything else before any weight is loaded). It is
+# set to 8 here, i.e. one 8-GPU node: a single group, which falls back to full sharding. Raise it to your
+# own shard-group size if you have more: the released runs used 32 (4 nodes x 8), where the 96G nodes need
+# the 4x smaller per-rank model shard to fit the phase-2 activations and the remaining nodes are
+# data-parallel replicas.
+sp_size: 4
+fsdp:
+  sharding_strategy: "hybrid"
+  shard_world_size: 8
+  generator_checkpointing: true
+  real_score_checkpointing: false
+  fake_score_checkpointing: true
+  generator_cpu_offload: false
+  real_score_cpu_offload: false
+  fake_score_cpu_offload: false
+  text_encoder_cpu_offload: false
+
+streaming_config:
+  streaming_max_num_latent_frames: 120
+  streaming_chunk_size: 4
+  streaming_window_size: 5
+  streaming_full_history_block_num: 6
+  streaming_kv_recompute_enabled: true
+  streaming_kv_recompute_threshold: 18
+  streaming_kv_recompute_recent_k: 3
+
+dmd:
+  min_step_ratio: 0.02
+  max_step_ratio: 0.98
+  timestep_shift: 5.0
+  real_guidance_scale: 4.0
+  # Normalized sigma ratio applied only to the clean KV context; 0 disables it.
+  context_noise: 0.15
+
+  denoising_step_list: [1000, 800, 600, 400, 200]
+  score_window_latent_frames: 31
+  uniform_timestep_regularization:
+    # probability: 0.0 disables the regularizer.
+    probability: 0.5
+    candidate_step_indices: [1, 2, 3, 4]
+  # Final-video sampling is T-cache streaming and uses this chunk cap; null decodes in one pass.
+  vae_stream_decode_max_chunk_size: 4
+
+  # KV recompute keeps the sink plus the recent chunks and samples this many middle chunks.
+  recompute_mid_chunk_min: 1
+  recompute_mid_chunk_max: 5
+
+dmd_phases:
+  short_single_event:
+    max_steps: 600
+    video_length: 241
+    latent_frames: 61
+    event_count: 1
+    # Single-event CSV: the prompt_column column is read (other columns are ignored).
+    csv: "./data/movieroll/stage3_phase1_prompts.csv"
+    prompt_column: "prompt"
+
+  # Either phase takes one or two events. One: event_count 1 and prompt_column. Two: event_count 2,
+  # event_columns [event_1, event_2] and the switch_frame_min / switch_frame_max range.
+  long_dual_event:
+    max_steps: 600
+    video_length: 721
+    latent_frames: 181
+    event_count: 2
+    # The CSV must expose exactly event_1 and event_2 (plus any non-event columns).
+    csv: "./data/movieroll/stage3_phase2_event_captions.csv"
+    event_columns: ["event_1", "event_2"]
+    switch_frame_min: 129
+    switch_frame_max: 593
+
+# Trainable models keep fp32 sharded master parameters. FSDP all-gather and the forward pass use
+# bf16; gradient reduction uses fp32.
+master_weight_type: "fp32"
+mixed_precision: true
+allow_incomplete_checkpoint: false
+sample_at_start: false
+
+generator_ckpt: "./outputs/movieroll_stage2_ode/stage2_ode_1000steps_<timestamp>/checkpoints/step-1000/student.safetensors"
+real_score_ckpt: "ckpts/transformer/480p_t2v/diffusion_pytorch_model.safetensors"
+fake_score_ckpt: "ckpts/transformer/480p_t2v/diffusion_pytorch_model.safetensors"
+
+model_type: "MovieRoll-16164-MMDiT"
+# Full attention of the non-streaming real / fake score models: flash3 or torch (the same math; torch is SDPA).
+attn_mode: "flash3"
+
+# VAE / text encoder
+vae_path: "ckpts/vae"
+vae_precision: "fp16"
+text_encoder_path: "ckpts/text_encoder/llm"
+text_encoder_precision: "fp16"
+text_len: 1000
+byt5_google_path: "ckpts/text_encoder/byt5-small"
+byt5_ckpt_path: "ckpts/text_encoder/Glyph-SDXL-v2/checkpoints/byt5_model.pt"
+multilingual_prompt_format_font_path: "ckpts/text_encoder/Glyph-SDXL-v2/assets/multilingual_10-lang_idx.json"
+multilingual_prompt_format_color_path: "ckpts/text_encoder/Glyph-SDXL-v2/assets/color_idx.json"
+byt5_max_length: 256
+
+video:
+  # One resolution (H, W) for both phases.
+  resolution: [480, 864]
+  task_sampling:
+    t2v_prob: 0.8
+
+ema_weight: 0.99
+ema_start_step: 200
+
+data:
+  batch_size: 1
+  num_workers: 2
+
+disable_tensorboard: true
+
+sampling:
+  # The training-time sampling benchmark: ordered event columns event_1..event_N, no empty cell.
+  # Read through its ordered event_1..event_N columns; an empty cell is an error.
+  test_event_csv: "./data/movieroll/stage3_test_events.csv"
+  num_samples: 8
+  val_num_samples: 32
+  video_length: 721
+  height: 480
+  width: 864
+  seed: 42
+  decode_to_video: true
+  save_latents: false

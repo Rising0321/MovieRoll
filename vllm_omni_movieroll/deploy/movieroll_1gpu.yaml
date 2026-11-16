@@ -1,0 +1,14 @@
+# MovieRoll deploy: 1 GPU (the recommended layout on a 96 GB card).
+# Use with: vllm serve <model dir> --omni --deploy-config vllm_omni_movieroll/deploy/movieroll_1gpu.yaml
+# MovieRoll's sampling settings (the validated list profiles.OVERRIDABLE) are changed in the stage entry below, next to
+# devices: `model_config: {movieroll_overrides: {kv_recompute_threshold: 12}}`.
+async_chunk: false
+distributed_executor_backend: mp
+dtype: bfloat16
+
+stages:
+  - stage_id: 0
+    devices: "0"
+    max_num_seqs: 1
+    # MovieRoll's streaming VAE decode is exact and chunk-bounded; tiling would blend tiles
+    vae_use_tiling: false
