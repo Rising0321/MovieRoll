@@ -17,7 +17,7 @@
 
 ## 🎬 Video Demo
 
-[▶ Watch the latest video demo](https://tencent-hunyuan.github.io/MovieRoll/assets/videos/movieroll-demo.mp4)
+https://tencent-hunyuan.github.io/MovieRoll/assets/videos/movieroll-demo.mp4
 
 ## 🔥 News!
 
