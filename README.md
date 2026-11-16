@@ -7,7 +7,7 @@
 ### A Systematic Framework for Rolling Out Long-Form Videos
 
 ![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?logo=arxiv)
-![Project Page](https://img.shields.io/badge/Page-Coming_Soon-2ea44f)
+[![Project Page](https://img.shields.io/badge/Page-Project_Page-2ea44f)](https://tencent-hunyuan.github.io/MovieRoll/)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97_Models-Hugging_Face-yellow)](https://huggingface.co/yunyangge/MovieRoll)
 [![SGLang](https://img.shields.io/badge/Backend-SGLang_Diffusion-orange)](./sglang_movieroll/README.md)
 [![vLLM-Omni](https://img.shields.io/badge/Backend-vLLM--Omni-blue)](./vllm_omni_movieroll/README.md)
@@ -17,7 +17,7 @@
 
 ## 🎬 Video Demo
 
-https://github.com/user-attachments/assets/7094b165-1278-418c-afdb-dbd5d487c216
+[▶ Watch the latest video demo](https://tencent-hunyuan.github.io/MovieRoll/assets/videos/movieroll-demo.mp4)
 
 ## 🔥 News!
 
