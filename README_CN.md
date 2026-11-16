@@ -17,7 +17,7 @@
 
 ## 🎬 视频演示
 
-https://tencent-hunyuan.github.io/MovieRoll/assets/videos/movieroll-demo.mp4
+https://github.com/user-attachments/assets/65bf0af7-303c-4b1b-89d1-306d0edc9a1f
 
 ## 🔥 最新动态！
 
