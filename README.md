@@ -238,6 +238,34 @@ The examples above use the native MovieRoll entry point. For framework integrati
 | SGLang Diffusion | [Setup and inference](./sglang_movieroll/README.md) |
 | vLLM-Omni | [Setup and inference](./vllm_omni_movieroll/README.md) |
 
+## Inference with Reactor Runtime
+
+The [Reactor integration](reactor/README.md) serves MovieRoll-Distilled from text
+or an uploaded image, with continuous video and live prompt updates. On the
+tested four-B200 NVLink setup, install the [Reactor CLI](https://docs.reactor.inc/deploy/platform/installation),
+Docker and NVIDIA Container Toolkit, accept the MovieRoll weight terms, and
+make an authorized Hugging Face token available as `HF_TOKEN`:
+
+```sh
+cd reactor
+reactor build
+reactor run --gpus '"device=0,1,2,3"' --port 8080 --shm-size 4g -e HF_TOKEN
+```
+
+Wait for `curl -s http://localhost:8080/health` to report `"state":"available"`.
+In a second terminal, from `reactor/`, run:
+
+```sh
+cd demo
+npm ci
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Open [http://localhost:5173](http://localhost:5173), apply Runtime URL
+`http://localhost:8080`, and click Connect. Choose text or an image, enter a
+scene, then press Start video. Use Update prompt to guide the same video.
+The [guide](reactor/README.md) covers requirements, limits and SSH/WebRTC access.
+
 <a id="training"></a>
 
 ## 🎓 Training
