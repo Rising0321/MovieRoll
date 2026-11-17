@@ -19,6 +19,7 @@
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97_Models-Hugging_Face-yellow)](https://huggingface.co/yunyangge/MovieRoll)
 [![SGLang](https://img.shields.io/badge/Backend-SGLang_Diffusion-orange)](./sglang_movieroll/README.md)
 [![vLLM-Omni](https://img.shields.io/badge/Backend-vLLM--Omni-blue)](./vllm_omni_movieroll/README.md)
+[![Reactor Runtime](https://img.shields.io/badge/Backend-Reactor_Runtime-7B61FF)](./reactor/README.md)
 [![License](https://img.shields.io/badge/License-Tencent_Hunyuan_Community-green)](./LICENSE)
 
 </div>
@@ -29,6 +30,7 @@ https://github.com/user-attachments/assets/2d4287cd-ae78-4870-8cd9-fec0edb21ecf
 
 ## 🔥 News!
 
+- **[2026.11.18]** 🚀 Support [Reactor Runtime](./reactor/README.md) for continuous text-to-video and image-to-video streaming with live prompt updates.
 - **[2026.11.16]** 🚀 Day-0 support for [SGLang Diffusion](./sglang_movieroll/README.md) and [vLLM-Omni](./vllm_omni_movieroll/README.md).
 - **[2026.11.16]** 🎉 We release the MovieRoll code!
 
@@ -237,34 +239,7 @@ The examples above use the native MovieRoll entry point. For framework integrati
 |---|---|
 | SGLang Diffusion | [Setup and inference](./sglang_movieroll/README.md) |
 | vLLM-Omni | [Setup and inference](./vllm_omni_movieroll/README.md) |
-
-## Inference with Reactor Runtime
-
-The [Reactor integration](reactor/README.md) serves MovieRoll-Distilled from text
-or an uploaded image, with continuous video and live prompt updates. On the
-tested four-B200 NVLink setup, install the [Reactor CLI](https://docs.reactor.inc/deploy/platform/installation),
-Docker and NVIDIA Container Toolkit, accept the MovieRoll weight terms, and
-make an authorized Hugging Face token available as `HF_TOKEN`:
-
-```sh
-cd reactor
-reactor build
-reactor run --gpus '"device=0,1,2,3"' --port 8080 --shm-size 4g -e HF_TOKEN
-```
-
-Wait for `curl -s http://localhost:8080/health` to report `"state":"available"`.
-In a second terminal, from `reactor/`, run:
-
-```sh
-cd demo
-npm ci
-npm run dev -- --host 127.0.0.1 --port 5173
-```
-
-Open [http://localhost:5173](http://localhost:5173), apply Runtime URL
-`http://localhost:8080`, and click Connect. Choose text or an image, enter a
-scene, then press Start video. Use Update prompt to guide the same video.
-The [guide](reactor/README.md) covers requirements, limits and SSH/WebRTC access.
+| Reactor Runtime | [Setup and inference](./reactor/README.md) |
 
 <a id="training"></a>
 
