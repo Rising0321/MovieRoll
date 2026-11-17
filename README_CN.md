@@ -14,7 +14,7 @@
   <sup>‡</sup> Work done during internship at Tencent Hunyuan</sub>
 </p>
 
-![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?logo=arxiv)
+[![arXiv](https://img.shields.io/badge/arXiv-2611.21339-b31b1b?logo=arxiv)](https://arxiv.org/abs/2611.21339)
 [![Project Page](https://img.shields.io/badge/Page-Project_Page-2ea44f)](https://tencent-hunyuan.github.io/MovieRoll/)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97_Models-Hugging_Face-yellow)](https://huggingface.co/yunyangge/MovieRoll)
 [![SGLang](https://img.shields.io/badge/Backend-SGLang_Diffusion-orange)](./sglang_movieroll/README_CN.md)
@@ -285,11 +285,14 @@ MovieRoll 的代码从 [HunyuanVideo-1.5](https://github.com/Tencent-Hunyuan/Hun
 如果我们的工作对你有帮助，欢迎引用：
 
 ```bibtex
-@misc{ge2026movieroll,
-  title  = {MovieRoll: A Systematic Framework for Rolling Out Long-Form Videos},
-  author = {Yunyang Ge and Weijie Kong and Ryan Xu and Yue Wu and Qi Tian and Jiangfeng Xiong and Bin Lin and Mingzhe Zheng and Shenghai Yuan and Zheyuan Liu and Jianwei Zhang and Li Yuan},
-  year   = {2026},
-  url    = {https://github.com/Tencent-Hunyuan/MovieRoll}
+@misc{ge2026movierollsystematicframeworkrolling,
+      title={MovieRoll: A Systematic Framework for Rolling Out Long-Form Videos},
+      author={Yunyang Ge and Weijie Kong and Ryan Xu and Yue Wu and Qi Tian and Jiangfeng Xiong and Bin Lin and Mingzhe Zheng and Shenghai Yuan and Zheyuan Liu and Jianwei Zhang and Li Yuan},
+      year={2026},
+      eprint={2611.21339},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2611.21339},
 }
 ```
 
